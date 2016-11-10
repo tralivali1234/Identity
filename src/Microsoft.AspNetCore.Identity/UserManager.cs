@@ -2423,7 +2423,7 @@ namespace Microsoft.AspNetCore.Identity
             var cast = Store as IUserAuthenticatorKeyStore<TUser>;
             if (cast == null)
             {
-                throw new NotSupportedException(Resources.StoreNotIUserAuthenticatorStore);
+                throw new NotSupportedException(Resources.StoreNotIUserAuthenticatorKeyStore);
             }
             return cast;
         }
