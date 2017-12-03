@@ -12,3 +12,8 @@ This project is part of ASP.NET Core. You can find samples, documentation and ge
 ## Community Maintained Store Providers
 
  - [ASP.NET Identity MongoDB Provider](https://github.com/tugberkugurlu/AspNetCore.Identity.MongoDB)
+ - [ASP.NET Identity LinqToDB Provider](https://github.com/ili/LinqToDB.Identity)
+ - [ASP.NET Identity DynamoDB Provider](https://github.com/miltador/AspNetCore.Identity.DynamoDB)
+ - ASP.NET Identity RavenDB Provider:
+    - [By Judah Gabriel Himango](https://github.com/JudahGabriel/RavenDB.Identity)
+    - [By Iskandar Rafiev](https://github.com/maqduni/AspNetCore.Identity.RavenDB)

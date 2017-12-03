@@ -2,7 +2,6 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System.Linq;
-using System.Text;
 using Xunit;
 
 namespace Microsoft.AspNetCore.Identity.Test
@@ -14,7 +13,7 @@ namespace Microsoft.AspNetCore.Identity.Test
         {
             var result = new IdentityResult();
             Assert.False(result.Succeeded);
-            Assert.Equal(0, result.Errors.Count());
+            Assert.Empty(result.Errors);
         }
 
         [Fact]
@@ -22,7 +21,7 @@ namespace Microsoft.AspNetCore.Identity.Test
         {
             var result = IdentityResult.Failed();
             Assert.False(result.Succeeded);
-            Assert.Equal(0, result.Errors.Count());
+            Assert.Empty(result.Errors);
         }
     }
 }

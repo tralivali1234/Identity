@@ -3,8 +3,8 @@
 
 using System;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -17,14 +17,16 @@ namespace Microsoft.AspNetCore.Identity
     public class SecurityStampValidator<TUser> : ISecurityStampValidator where TUser : class
     {
         private readonly SignInManager<TUser> _signInManager;
-        private readonly IdentityOptions _options;
+        private readonly SecurityStampValidatorOptions _options;
+        private ISystemClock _clock;
 
         /// <summary>
         /// Creates a new instance of <see cref="SecurityStampValidator{TUser}"/>.
         /// </summary>
         /// <param name="options">Used to access the <see cref="IdentityOptions"/>.</param>
         /// <param name="signInManager">The <see cref="SignInManager{TUser}"/>.</param>
-        public SecurityStampValidator(IOptions<IdentityOptions> options, SignInManager<TUser> signInManager)
+        /// <param name="clock">The system clock.</param>
+        public SecurityStampValidator(IOptions<SecurityStampValidatorOptions> options, SignInManager<TUser> signInManager, ISystemClock clock)
         {
             if (options == null)
             {
@@ -36,6 +38,7 @@ namespace Microsoft.AspNetCore.Identity
             }
             _signInManager = signInManager;
             _options = options.Value;
+            _clock = clock;
         }
 
         /// <summary>
@@ -48,9 +51,9 @@ namespace Microsoft.AspNetCore.Identity
         public virtual async Task ValidateAsync(CookieValidatePrincipalContext context)
         {
             var currentUtc = DateTimeOffset.UtcNow;
-            if (context.Options != null && context.Options.SystemClock != null)
+            if (context.Options != null && _clock != null)
             {
-                currentUtc = context.Options.SystemClock.UtcNow;
+                currentUtc = _clock.UtcNow;
             }
             var issuedUtc = context.Properties.IssuedUtc;
 
@@ -59,7 +62,7 @@ namespace Microsoft.AspNetCore.Identity
             if (issuedUtc != null)
             {
                 var timeElapsed = currentUtc.Subtract(issuedUtc.Value);
-                validate = timeElapsed > _options.SecurityStampValidationInterval;
+                validate = timeElapsed > _options.ValidationInterval;
             }
             if (validate)
             {
@@ -68,7 +71,7 @@ namespace Microsoft.AspNetCore.Identity
                 {
                     var newPrincipal = await _signInManager.CreateUserPrincipalAsync(user);
 
-                    if (_options.OnSecurityStampRefreshingPrincipal != null)
+                    if (_options.OnRefreshingPrincipal != null)
                     {
                         var replaceContext = new SecurityStampRefreshingPrincipalContext
                         {
@@ -77,7 +80,7 @@ namespace Microsoft.AspNetCore.Identity
                         };
 
                         // Note: a null principal is allowed and results in a failed authentication.
-                        await _options.OnSecurityStampRefreshingPrincipal(replaceContext);
+                        await _options.OnRefreshingPrincipal(replaceContext);
                         newPrincipal = replaceContext.NewPrincipal;
                     }
 

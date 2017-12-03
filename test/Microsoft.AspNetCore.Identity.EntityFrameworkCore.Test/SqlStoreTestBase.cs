@@ -7,16 +7,20 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.Test;
 using Microsoft.AspNetCore.Testing;
 using Microsoft.AspNetCore.Testing.xunit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore.Test
 {
-    public abstract class SqlStoreTestBase<TUser, TRole, TKey> : UserManagerTestBase<TUser, TRole, TKey>, IClassFixture<ScratchDatabaseFixture>
+    // TODO: Add test variation with non IdentityDbContext
+
+    public abstract class SqlStoreTestBase<TUser, TRole, TKey> : IdentitySpecificationTestBase<TUser, TRole, TKey>, IClassFixture<ScratchDatabaseFixture>
         where TUser : IdentityUser<TKey>, new()
         where TRole : IdentityRole<TKey>, new()
         where TKey : IEquatable<TKey>
@@ -26,6 +30,25 @@ namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore.Test
         protected SqlStoreTestBase(ScratchDatabaseFixture fixture)
         {
             _fixture = fixture;
+        }
+
+        protected override void SetupIdentityServices(IServiceCollection services, object context)
+        {
+            services.AddHttpContextAccessor();
+            services.AddSingleton((TestDbContext)context);
+            services.AddLogging();
+            services.AddSingleton<ILogger<UserManager<TUser>>>(new TestLogger<UserManager<TUser>>());
+            services.AddSingleton<ILogger<RoleManager<TRole>>>(new TestLogger<RoleManager<TRole>>());
+            services.AddIdentity<TUser, TRole>(options =>
+            {
+                options.Password.RequireDigit = false;
+                options.Password.RequireLowercase = false;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequireUppercase = false;
+                options.User.AllowedUserNameCharacters = null;
+            })
+            .AddDefaultTokenProviders()
+            .AddEntityFrameworkStores<TestDbContext>();
         }
 
         protected override bool ShouldSkipDbTests()
@@ -182,14 +205,14 @@ namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore.Test
             IdentityResultAssert.IsSuccess(await userMgr.CreateAsync(user));
             IdentityResultAssert.IsSuccess(await userMgr.AddToRoleAsync(user, roleName));
             var roles = await userMgr.GetRolesAsync(user);
-            Assert.Equal(1, roles.Count());
+            Assert.Single(roles);
             IdentityResultAssert.IsSuccess(await roleMgr.DeleteAsync(role));
             Assert.Null(await roleMgr.FindByNameAsync(roleName));
             Assert.False(await roleMgr.RoleExistsAsync(roleName));
             // REVIEW: We should throw if deleteing a non empty role?
             roles = await userMgr.GetRolesAsync(user);
 
-            Assert.Equal(0, roles.Count());
+            Assert.Empty(roles);
         }
 
         [ConditionalFact]
@@ -210,12 +233,31 @@ namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore.Test
             IdentityResultAssert.IsSuccess(await userMgr.AddToRoleAsync(user, roleName));
 
             var roles = await userMgr.GetRolesAsync(user);
-            Assert.Equal(1, roles.Count());
+            Assert.Single(roles);
 
             IdentityResultAssert.IsSuccess(await userMgr.DeleteAsync(user));
 
             roles = await userMgr.GetRolesAsync(user);
-            Assert.Equal(0, roles.Count());
+            Assert.Empty(roles);
+        }
+
+        [ConditionalFact]
+        [FrameworkSkipCondition(RuntimeFrameworks.Mono)]
+        [OSSkipCondition(OperatingSystems.Linux)]
+        [OSSkipCondition(OperatingSystems.MacOSX)]
+        public async Task DeleteUserRemovesTokensTest()
+        {
+            // Need fail if not empty?
+            var userMgr = CreateManager();
+            var user = CreateTestUser();
+            IdentityResultAssert.IsSuccess(await userMgr.CreateAsync(user));
+            IdentityResultAssert.IsSuccess(await userMgr.SetAuthenticationTokenAsync(user, "provider", "test", "value"));
+
+            Assert.Equal("value", await userMgr.GetAuthenticationTokenAsync(user, "provider", "test"));
+
+            IdentityResultAssert.IsSuccess(await userMgr.DeleteAsync(user));
+
+            Assert.Null(await userMgr.GetAuthenticationTokenAsync(user, "provider", "test"));
         }
 
 
@@ -344,6 +386,5 @@ namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore.Test
             Assert.Equal(1, (await manager.GetLoginsAsync(userByEmail)).Count);
             Assert.Equal(2, (await manager.GetRolesAsync(userByEmail)).Count);
         }
-
     }
 }

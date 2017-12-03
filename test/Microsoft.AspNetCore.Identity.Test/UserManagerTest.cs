@@ -8,6 +8,7 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Xunit;
@@ -19,23 +20,26 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void EnsureDefaultServicesDefaultsWithStoreWorks()
         {
+            var config = new ConfigurationBuilder().Build();
             var services = new ServiceCollection()
+                    .AddSingleton<IConfiguration>(config)
                     .AddTransient<IUserStore<TestUser>, NoopUserStore>();
             services.AddIdentity<TestUser, TestRole>();
-            services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+            services.AddHttpContextAccessor();
             services.AddLogging();
             var manager = services.BuildServiceProvider().GetRequiredService<UserManager<TestUser>>();
             Assert.NotNull(manager.PasswordHasher);
-            Assert.NotNull(manager.Store);
             Assert.NotNull(manager.Options);
         }
 
         [Fact]
         public void AddUserManagerWithCustomManagerReturnsSameInstance()
         {
+            var config = new ConfigurationBuilder().Build();
             var services = new ServiceCollection()
+                    .AddSingleton<IConfiguration>(config)
                     .AddTransient<IUserStore<TestUser>, NoopUserStore>()
-                    .AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+                    .AddHttpContextAccessor();
 
             services.AddLogging();
 
@@ -57,7 +61,7 @@ namespace Microsoft.AspNetCore.Identity.Test
 
         public class CustomRoleManager : RoleManager<TestRole>
         {
-            public CustomRoleManager() : base(new Mock<IRoleStore<TestRole>>().Object, null, null, null, null, null)
+            public CustomRoleManager() : base(new Mock<IRoleStore<TestRole>>().Object, null, null, null, null)
             { }
         }
 
@@ -484,6 +488,42 @@ namespace Microsoft.AspNetCore.Identity.Test
         }
 
         [Fact]
+        public async Task CreateFailsWithNullSecurityStamp()
+        {
+            // Setup
+            var store = new Mock<IUserSecurityStampStore<TestUser>>();
+            var manager = MockHelpers.TestUserManager(store.Object);
+            var user = new TestUser { UserName = "nulldude" };
+            store.Setup(s => s.GetSecurityStampAsync(user, It.IsAny<CancellationToken>())).ReturnsAsync(default(string)).Verifiable();
+
+            // Act
+            // Assert
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.CreateAsync(user));
+            Assert.Contains(Extensions.Identity.Core.Resources.NullSecurityStamp, ex.Message);
+
+            store.VerifyAll();
+        }
+
+        [Fact]
+        public async Task UpdateFailsWithNullSecurityStamp()
+        {
+            // Setup
+            var store = new Mock<IUserSecurityStampStore<TestUser>>();
+            var manager = MockHelpers.TestUserManager(store.Object);
+            var user = new TestUser { UserName = "nulldude" };
+            store.Setup(s => s.GetSecurityStampAsync(user, It.IsAny<CancellationToken>())).ReturnsAsync(default(string)).Verifiable();
+
+            // Act
+            // Assert
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.UpdateAsync(user));
+            Assert.Contains(Extensions.Identity.Core.Resources.NullSecurityStamp, ex.Message);
+
+            store.VerifyAll();
+        }
+
+
+
+        [Fact]
         public async Task RemoveClaimsCallsStore()
         {
             // Setup
@@ -596,9 +636,9 @@ namespace Microsoft.AspNetCore.Identity.Test
             await Assert.ThrowsAsync<NotSupportedException>(() => manager.UpdateSecurityStampAsync(null));
             await Assert.ThrowsAsync<NotSupportedException>(() => manager.GetSecurityStampAsync(null));
             await Assert.ThrowsAsync<NotSupportedException>(
-                    () => manager.VerifyChangePhoneNumberTokenAsync(null, "1", "111-111-1111"));
+                    () => manager.VerifyChangePhoneNumberTokenAsync(new TestUser(), "1", "111-111-1111"));
             await Assert.ThrowsAsync<NotSupportedException>(
-                    () => manager.GenerateChangePhoneNumberTokenAsync(null, "111-111-1111"));
+                    () => manager.GenerateChangePhoneNumberTokenAsync(new TestUser(), "111-111-1111"));
         }
 
         [Fact]
@@ -644,10 +684,13 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void UserManagerWillUseTokenProviderInstance()
         {
-            var services = new ServiceCollection();
             var provider = new ATokenProvider();
-            services.AddLogging()
-                .AddIdentity<TestUser, TestRole>(o => o.Tokens.ProviderMap.Add("A", new TokenProviderDescriptor(typeof(ATokenProvider))
+            var config = new ConfigurationBuilder().Build();
+            var services = new ServiceCollection()
+                    .AddSingleton<IConfiguration>(config)
+                    .AddLogging();
+
+            services.AddIdentity<TestUser, TestRole>(o => o.Tokens.ProviderMap.Add("A", new TokenProviderDescriptor(typeof(ATokenProvider))
             {
                 ProviderInstance = provider
             })).AddUserStore<NoopUserStore>();
@@ -658,10 +701,13 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void UserManagerWillUseTokenProviderInstanceOverDefaults()
         {
-            var services = new ServiceCollection();
             var provider = new ATokenProvider();
-            services.AddLogging()
-                .AddIdentity<TestUser, TestRole>(o => o.Tokens.ProviderMap.Add(TokenOptions.DefaultProvider, new TokenProviderDescriptor(typeof(ATokenProvider))
+            var config = new ConfigurationBuilder().Build();
+            var services = new ServiceCollection()
+                    .AddSingleton<IConfiguration>(config)
+                    .AddLogging();
+
+            services.AddIdentity<TestUser, TestRole>(o => o.Tokens.ProviderMap.Add(TokenOptions.DefaultProvider, new TokenProviderDescriptor(typeof(ATokenProvider))
                 {
                     ProviderInstance = provider
                 })).AddUserStore<NoopUserStore>().AddDefaultTokenProviders();
@@ -703,6 +749,43 @@ namespace Microsoft.AspNetCore.Identity.Test
             await Assert.ThrowsAsync<NotSupportedException>(async () => await manager.RemoveFromRoleAsync(null, "bogus"));
             await Assert.ThrowsAsync<NotSupportedException>(async () => await manager.RemoveFromRolesAsync(null, null));
             await Assert.ThrowsAsync<NotSupportedException>(async () => await manager.IsInRoleAsync(null, "bogus"));
+        }
+
+        [Fact]
+        public async Task AuthTokenMethodsFailWhenStoreNotImplemented()
+        {
+            var error = Extensions.Identity.Core.Resources.StoreNotIUserAuthenticationTokenStore;
+            var manager = MockHelpers.TestUserManager(new NoopUserStore());
+            Assert.False(manager.SupportsUserAuthenticationTokens);
+            await VerifyException<NotSupportedException>(async () => await manager.GetAuthenticationTokenAsync(null, null, null), error);
+            await VerifyException<NotSupportedException>(async () => await manager.SetAuthenticationTokenAsync(null, null, null, null), error);
+            await VerifyException<NotSupportedException>(async () => await manager.RemoveAuthenticationTokenAsync(null, null, null), error);
+        }
+
+        [Fact]
+        public async Task AuthenticatorMethodsFailWhenStoreNotImplemented()
+        {
+            var error = Extensions.Identity.Core.Resources.StoreNotIUserAuthenticatorKeyStore;
+            var manager = MockHelpers.TestUserManager(new NoopUserStore());
+            Assert.False(manager.SupportsUserAuthenticatorKey);
+            await VerifyException<NotSupportedException>(async () => await manager.GetAuthenticatorKeyAsync(null), error);
+            await VerifyException<NotSupportedException>(async () => await manager.ResetAuthenticatorKeyAsync(null), error);
+        }
+
+        [Fact]
+        public async Task RecoveryMethodsFailWhenStoreNotImplemented()
+        {
+            var error = Extensions.Identity.Core.Resources.StoreNotIUserTwoFactorRecoveryCodeStore;
+            var manager = MockHelpers.TestUserManager(new NoopUserStore());
+            Assert.False(manager.SupportsUserTwoFactorRecoveryCodes);
+            await VerifyException<NotSupportedException>(async () => await manager.RedeemTwoFactorRecoveryCodeAsync(null, null), error);
+            await VerifyException<NotSupportedException>(async () => await manager.GenerateNewTwoFactorRecoveryCodesAsync(null, 10), error);
+        }
+
+        private async Task VerifyException<TException>(Func<Task> code, string expectedMessage) where TException : Exception
+        {
+            var error = await Assert.ThrowsAsync<TException>(code);
+            Assert.Equal(expectedMessage, error.Message);
         }
 
         [Fact]
@@ -1453,14 +1536,17 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public async Task CanCustomizeUserValidatorErrors()
         {
-            var services = new ServiceCollection();
             var store = new Mock<IUserEmailStore<TestUser>>();
             var describer = new TestErrorDescriber();
-            services.AddSingleton<IdentityErrorDescriber>(describer)
-                .AddSingleton<IUserStore<TestUser>>(store.Object)
-                .AddIdentity<TestUser, TestRole>();
-            services.AddLogging();
-            services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+            var config = new ConfigurationBuilder().Build();
+            var services = new ServiceCollection()
+                    .AddSingleton<IConfiguration>(config)
+                    .AddLogging()
+                    .AddSingleton<IdentityErrorDescriber>(describer)
+                    .AddSingleton<IUserStore<TestUser>>(store.Object)
+                    .AddHttpContextAccessor();
+
+            services.AddIdentity<TestUser, TestRole>();
 
             var manager = services.BuildServiceProvider().GetRequiredService<UserManager<TestUser>>();
 

@@ -4,13 +4,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -18,11 +16,37 @@ namespace Microsoft.AspNetCore.Identity.Test
 {
     public class IdentityBuilderTest
     {
+        [Fact]
+        public void AddRolesServicesAdded()
+        {
+            var services = new ServiceCollection();
+            services.AddIdentityCore<TestUser>(o => { })
+                .AddRoles<TestRole>()
+                .AddRoleStore<NoopRoleStore>();
+            var sp = services.BuildServiceProvider();
+            Assert.NotNull(sp.GetRequiredService<IRoleValidator<TestRole>>());
+            Assert.IsType<NoopRoleStore>(sp.GetRequiredService<IRoleStore<TestRole>>());
+            Assert.NotNull(sp.GetRequiredService<RoleManager<TestRole>>());
+        }
+
+        [Fact]
+        public void AddRolesWithoutStoreWillError()
+        {
+            var services = new ServiceCollection();
+            services.AddIdentityCore<TestUser>(o => { })
+                .AddRoles<TestRole>();
+            var sp = services.BuildServiceProvider();
+            Assert.NotNull(sp.GetRequiredService<IRoleValidator<TestRole>>());
+            Assert.Null(sp.GetService<IRoleStore<TestRole>>());
+            Assert.Throws<InvalidOperationException>(() => sp.GetService<RoleManager<TestRole>>());
+        }
+
 
         [Fact]
         public void CanOverrideUserStore()
         {
-            var services = new ServiceCollection();
+            var services = new ServiceCollection()
+               .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddIdentity<TestUser,TestRole>().AddUserStore<MyUberThingy>();
             var thingy = services.BuildServiceProvider().GetRequiredService<IUserStore<TestUser>>() as MyUberThingy;
             Assert.NotNull(thingy);
@@ -31,7 +55,8 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void CanOverrideRoleStore()
         {
-            var services = new ServiceCollection();
+            var services = new ServiceCollection()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddIdentity<TestUser,TestRole>().AddRoleStore<MyUberThingy>();
             var thingy = services.BuildServiceProvider().GetRequiredService<IRoleStore<TestRole>>() as MyUberThingy;
             Assert.NotNull(thingy);
@@ -40,7 +65,9 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void CanOverridePrincipalFactory()
         {
-            var services = new ServiceCollection().AddLogging();
+            var services = new ServiceCollection()
+                .AddLogging()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddIdentity<TestUser, TestRole>()
                 .AddClaimsPrincipalFactory<MyClaimsPrincipalFactory>()
                 .AddUserManager<MyUserManager>()
@@ -53,7 +80,8 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void CanOverrideRoleValidator()
         {
-            var services = new ServiceCollection();
+            var services = new ServiceCollection()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddIdentity<TestUser,TestRole>().AddRoleValidator<MyUberThingy>();
             var thingy = services.BuildServiceProvider().GetRequiredService<IRoleValidator<TestRole>>() as MyUberThingy;
             Assert.NotNull(thingy);
@@ -62,7 +90,8 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void CanOverrideUserValidator()
         {
-            var services = new ServiceCollection();
+            var services = new ServiceCollection()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddIdentity<TestUser,TestRole>().AddUserValidator<MyUberThingy>();
             var thingy = services.BuildServiceProvider().GetRequiredService<IUserValidator<TestUser>>() as MyUberThingy;
             Assert.NotNull(thingy);
@@ -71,7 +100,8 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void CanOverridePasswordValidator()
         {
-            var services = new ServiceCollection();
+            var services = new ServiceCollection()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddIdentity<TestUser,TestRole>().AddPasswordValidator<MyUberThingy>();
             var thingy = services.BuildServiceProvider().GetRequiredService<IPasswordValidator<TestUser>>() as MyUberThingy;
             Assert.NotNull(thingy);
@@ -80,7 +110,8 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void CanOverrideUserManager()
         {
-            var services = new ServiceCollection();
+            var services = new ServiceCollection()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddIdentity<TestUser, TestRole>()
                 .AddUserStore<NoopUserStore>()
                 .AddUserManager<MyUserManager>();
@@ -91,7 +122,8 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void CanOverrideRoleManager()
         {
-            var services = new ServiceCollection();
+            var services = new ServiceCollection()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddIdentity<TestUser, TestRole>()
                     .AddRoleStore<NoopRoleStore>()
                     .AddRoleManager<MyRoleManager>();
@@ -102,10 +134,11 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void CanOverrideSignInManager()
         {
-            var services = new ServiceCollection();
-            services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>()
-                .AddLogging()
-                .AddIdentity<TestUser, TestRole>()
+            var services = new ServiceCollection()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
+                .AddHttpContextAccessor()
+                .AddLogging();
+            services.AddIdentity<TestUser, TestRole>()
                 .AddUserStore<NoopUserStore>()
                 .AddRoleStore<NoopRoleStore>()
                 .AddUserManager<MyUserManager>()
@@ -118,7 +151,8 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void EnsureDefaultServices()
         {
-            var services = new ServiceCollection();
+            var services = new ServiceCollection()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddIdentity<TestUser,TestRole>();
 
             var provider = services.BuildServiceProvider();
@@ -135,22 +169,21 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void EnsureDefaultTokenProviders()
         {
-            var services = new ServiceCollection();
+            var services = new ServiceCollection()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             services.AddIdentity<TestUser,TestRole>().AddDefaultTokenProviders();
 
             var provider = services.BuildServiceProvider();
             var tokenProviders = provider.GetRequiredService<IOptions<IdentityOptions>>().Value.Tokens.ProviderMap.Values;
-            Assert.Equal(3, tokenProviders.Count());
+            Assert.Equal(4, tokenProviders.Count());
         }
 
         [Fact]
         public void AddManagerWithWrongTypesThrows()
         {
-            var services = new ServiceCollection();
+            var services = new ServiceCollection()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             var builder = services.AddIdentity<TestUser, TestRole>();
-            Assert.Throws<InvalidOperationException>(() => builder.AddUserManager<UserManager<TestUser>>());
-            Assert.Throws<InvalidOperationException>(() => builder.AddRoleManager<RoleManager<TestRole>>());
-            Assert.Throws<InvalidOperationException>(() => builder.AddSignInManager<SignInManager<TestRole>>());
             Assert.Throws<InvalidOperationException>(() => builder.AddUserManager<object>());
             Assert.Throws<InvalidOperationException>(() => builder.AddRoleManager<object>());
             Assert.Throws<InvalidOperationException>(() => builder.AddSignInManager<object>());
@@ -159,7 +192,8 @@ namespace Microsoft.AspNetCore.Identity.Test
         [Fact]
         public void AddTokenProviderWithWrongTypesThrows()
         {
-            var services = new ServiceCollection();
+            var services = new ServiceCollection()
+                .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
             var builder = services.AddIdentity<TestUser, TestRole>();
             Assert.Throws<InvalidOperationException>(() => builder.AddTokenProvider<object>("whatevs"));
             Assert.Throws<InvalidOperationException>(() => builder.AddTokenProvider("whatevs", typeof(object)));
@@ -290,7 +324,7 @@ namespace Microsoft.AspNetCore.Identity.Test
 
         private class MySignInManager : SignInManager<TestUser>
         {
-            public MySignInManager(UserManager<TestUser> manager, IHttpContextAccessor context, IUserClaimsPrincipalFactory<TestUser> claimsFactory) : base(manager, context, claimsFactory, null, null) { }
+            public MySignInManager(UserManager<TestUser> manager, IHttpContextAccessor context, IUserClaimsPrincipalFactory<TestUser> claimsFactory) : base(manager, context, claimsFactory, null, null, null) { }
         }
 
         private class MyUserManager : UserManager<TestUser>
@@ -308,7 +342,7 @@ namespace Microsoft.AspNetCore.Identity.Test
         private class MyRoleManager : RoleManager<TestRole>
         {
             public MyRoleManager(IRoleStore<TestRole> store,
-                IEnumerable<IRoleValidator<TestRole>> roleValidators) : base(store, null, null, null, null, null)
+                IEnumerable<IRoleValidator<TestRole>> roleValidators) : base(store, null, null, null, null)
             {
 
             }

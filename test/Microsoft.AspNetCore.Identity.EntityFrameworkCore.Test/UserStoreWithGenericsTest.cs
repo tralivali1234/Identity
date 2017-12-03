@@ -15,7 +15,7 @@ using Xunit;
 
 namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore.Test
 {
-    public class UserStoreWithGenericsTest : UserManagerTestBase<IdentityUserWithGenerics, MyIdentityRole, string>, IClassFixture<ScratchDatabaseFixture>
+    public class UserStoreWithGenericsTest : IdentitySpecificationTestBase<IdentityUserWithGenerics, MyIdentityRole, string>, IClassFixture<ScratchDatabaseFixture>
     {
         private readonly ScratchDatabaseFixture _fixture;
 
@@ -82,6 +82,24 @@ namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore.Test
         protected override Expression<Func<IdentityUserWithGenerics, bool>> UserNameStartsWithPredicate(string userName) => u => u.UserName.StartsWith(userName);
 
         protected override Expression<Func<MyIdentityRole, bool>> RoleNameStartsWithPredicate(string roleName) => r => r.Name.StartsWith(roleName);
+
+        [Fact]
+        public void AddEntityFrameworkStoresWithInvalidUserThrows()
+        {
+            var services = new ServiceCollection();
+            var builder = services.AddIdentity<object, IdentityRole>();
+            var e = Assert.Throws<InvalidOperationException>(() => builder.AddEntityFrameworkStores<ContextWithGenerics>());
+            Assert.Contains("AddEntityFrameworkStores", e.Message);
+        }
+
+        [Fact]
+        public void AddEntityFrameworkStoresWithInvalidRoleThrows()
+        {
+            var services = new ServiceCollection();
+            var builder = services.AddIdentity<IdentityUser, object>();
+            var e = Assert.Throws<InvalidOperationException>(() => builder.AddEntityFrameworkStores<ContextWithGenerics>());
+            Assert.Contains("AddEntityFrameworkStores", e.Message);
+        }
 
         [Fact]
         public async Task CanAddRemoveUserClaimWithIssuer()
@@ -191,7 +209,7 @@ namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore.Test
 
     #region Generic Type defintions
 
-    public class IdentityUserWithGenerics : IdentityUser<string, IdentityUserClaimWithIssuer, IdentityUserRoleWithDate, IdentityUserLoginWithContext>
+    public class IdentityUserWithGenerics : IdentityUser<string>
     {
         public IdentityUserWithGenerics()
         {
@@ -301,7 +319,7 @@ namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore.Test
         public DateTime Created { get; set; }
     }
 
-    public class MyIdentityRole : IdentityRole<string, IdentityUserRoleWithDate, IdentityRoleClaimWithIssuer>
+    public class MyIdentityRole : IdentityRole<string>
     {
         public MyIdentityRole() : base()
         {

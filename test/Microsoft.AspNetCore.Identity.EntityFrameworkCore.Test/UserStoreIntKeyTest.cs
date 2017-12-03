@@ -2,6 +2,8 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
 
 namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore.Test
 {
@@ -27,5 +29,22 @@ namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore.Test
             : base(fixture)
         {
         }
+
+        [Fact]
+        public void AddEntityFrameworkStoresCanInferKey()
+        {
+            var services = new ServiceCollection();
+            // This used to throw
+            var builder = services.AddIdentity<IntUser, IntRole>().AddEntityFrameworkStores<TestDbContext>();
+        }
+
+        [Fact]
+        public void AddEntityFrameworkStoresCanInferKeyWithGenericBase()
+        {
+            var services = new ServiceCollection();
+            // This used to throw
+            var builder = services.AddIdentity<IdentityUser<int>, IdentityRole<int>>().AddEntityFrameworkStores<TestDbContext>();
+        }
+
     }
 }

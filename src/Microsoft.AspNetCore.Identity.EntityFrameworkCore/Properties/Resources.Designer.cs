@@ -11,36 +11,60 @@ namespace Microsoft.AspNetCore.Identity.EntityFrameworkCore
             = new ResourceManager("Microsoft.AspNetCore.Identity.EntityFrameworkCore.Resources", typeof(Resources).GetTypeInfo().Assembly);
 
         /// <summary>
+        /// AddEntityFrameworkStores can only be called with a role that derives from IdentityRole&lt;TKey&gt;.
+        /// </summary>
+        internal static string NotIdentityRole
+        {
+            get => GetString("NotIdentityRole");
+        }
+
+        /// <summary>
+        /// AddEntityFrameworkStores can only be called with a role that derives from IdentityRole&lt;TKey&gt;.
+        /// </summary>
+        internal static string FormatNotIdentityRole()
+            => GetString("NotIdentityRole");
+
+        /// <summary>
+        /// AddEntityFrameworkStores can only be called with a user that derives from IdentityUser&lt;TKey&gt;.
+        /// </summary>
+        internal static string NotIdentityUser
+        {
+            get => GetString("NotIdentityUser");
+        }
+
+        /// <summary>
+        /// AddEntityFrameworkStores can only be called with a user that derives from IdentityUser&lt;TKey&gt;.
+        /// </summary>
+        internal static string FormatNotIdentityUser()
+            => GetString("NotIdentityUser");
+
+        /// <summary>
         /// Role {0} does not exist.
         /// </summary>
         internal static string RoleNotFound
         {
-            get { return GetString("RoleNotFound"); }
+            get => GetString("RoleNotFound");
         }
 
         /// <summary>
         /// Role {0} does not exist.
         /// </summary>
         internal static string FormatRoleNotFound(object p0)
-        {
-            return string.Format(CultureInfo.CurrentCulture, GetString("RoleNotFound"), p0);
-        }
+            => string.Format(CultureInfo.CurrentCulture, GetString("RoleNotFound"), p0);
 
         /// <summary>
         /// Value cannot be null or empty.
         /// </summary>
         internal static string ValueCannotBeNullOrEmpty
         {
-            get { return GetString("ValueCannotBeNullOrEmpty"); }
+            get => GetString("ValueCannotBeNullOrEmpty");
         }
 
         /// <summary>
         /// Value cannot be null or empty.
         /// </summary>
         internal static string FormatValueCannotBeNullOrEmpty()
-        {
-            return GetString("ValueCannotBeNullOrEmpty");
-        }
+            => GetString("ValueCannotBeNullOrEmpty");
 
         private static string GetString(string name, params string[] formatterNames)
         {

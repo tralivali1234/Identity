@@ -1,11 +1,7 @@
-// Copyright (c) .NET Foundation. All rights reserved.
+﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Builder
 {
@@ -15,29 +11,21 @@ namespace Microsoft.AspNetCore.Builder
     public static class BuilderExtensions
     {
         /// <summary>
+        /// <para>
+        /// This method is obsolete and will be removed in a future version.
+        /// The recommended alternative is <see cref="AuthAppBuilderExtensions.UseAuthentication(IApplicationBuilder)" />
+        /// </para>
+        /// <para>
         /// Enables ASP.NET identity for the current application.
+        /// </para>
         /// </summary>
         /// <param name="app">The <see cref="IApplicationBuilder"/> instance this method extends.</param>
         /// <returns>The <see cref="IApplicationBuilder"/> instance this method extends.</returns>
+        [Obsolete(
+            "This method is obsolete and will be removed in a future version. " +
+            "The recommended alternative is UseAuthentication(). " +
+            "See https://go.microsoft.com/fwlink/?linkid=845470")]
         public static IApplicationBuilder UseIdentity(this IApplicationBuilder app)
-        {
-            if (app == null)
-            {
-                throw new ArgumentNullException(nameof(app));
-            }
-
-            var marker = app.ApplicationServices.GetService<IdentityMarkerService>();
-            if (marker == null)
-            {
-                throw new InvalidOperationException(Resources.MustCallAddIdentity);
-            }
-
-            var options = app.ApplicationServices.GetRequiredService<IOptions<IdentityOptions>>().Value;
-            app.UseCookieAuthentication(options.Cookies.ExternalCookie);
-            app.UseCookieAuthentication(options.Cookies.TwoFactorRememberMeCookie);
-            app.UseCookieAuthentication(options.Cookies.TwoFactorUserIdCookie);
-            app.UseCookieAuthentication(options.Cookies.ApplicationCookie);
-            return app;
-        }
+            => app.UseAuthentication();
     }
 }
